@@ -245,10 +245,10 @@ def compute_and_plot_norm(all_image_embeddings, all_text_embeddings):
     text_l2_norms_np = text_l2_norms.numpy()
 
     # plot the distribution of image L2 norms
-    plt.hist(image_l2_norms_np, bins=50, alpha=0.5, label='Image L2 Norms')
+    plt.hist(image_l2_norms_np, bins=50, alpha=0.5, label='Image L2 Norms', density=True)
 
     # plot the distribution of text L2 norms
-    plt.hist(text_l2_norms_np, bins=50, alpha=0.5, label='Text L2 Norms')
+    plt.hist(text_l2_norms_np, bins=50, alpha=0.5, label='Text L2 Norms', density=True)
 
     plt.xlabel('L2 Norms')
     plt.ylabel('Frequency')
