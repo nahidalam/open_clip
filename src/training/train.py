@@ -257,6 +257,11 @@ def compute_and_plot_norm(all_image_embeddings, all_text_embeddings):
 
     # save the plot as an image 
     plt.savefig('norm_distribution_plot.png')
+
+    # save the data as .npy files
+    np.save('image_l2_norms.npy', image_l2_norms_np)
+    np.save('text_l2_norms.npy', text_l2_norms_np)
+    
     plt.close()
 
 
