@@ -251,8 +251,8 @@ def compute_and_plot_norm(all_image_embeddings, all_text_embeddings, prefix=''):
     # plot the distribution of text L2 norms
     plt.hist(text_l2_norms_np, bins=50, alpha=0.5, label='Text L2 Norms', density=True)
 
-    plt.xlabel('percentage of instances')
-    plt.ylabel('Frequency')
+    plt.xlabel('Distance')
+    plt.ylabel('Percentage of instances')
     plt.title('Normalized distribution of Image and Text L2 Norms')
     plt.legend()
 
