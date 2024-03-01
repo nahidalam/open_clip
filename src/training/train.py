@@ -234,12 +234,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
     # end for
 
 
-def compute_and_plot_norm(all_image_embeddings, all_text_embeddings, prefix=''):
-    # compute the L2 norms
-    # dim = -1 assuming norm along the last dimension
-    image_l2_norms = torch.norm(all_image_embeddings, p=2, dim=-1)
-    text_l2_norms = torch.norm(all_text_embeddings, p=2, dim=-1)
-
+def compute_and_plot_norm(image_l2_norms, text_l2_norms, prefix=''):
     # plot norm
     # convert tensors to numpy arrays
     image_l2_norms_np = image_l2_norms.numpy()
@@ -278,7 +273,7 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
 
     autocast = get_autocast(args.precision)
     input_dtype = get_input_dtype(args.precision)
-    metric = METRICS[model.geometry.split('-')[0]]
+    metric = METRICS[unwrap_model(model).geometry.split('-')[0]]
 
     if 'val' in data and (args.val_frequency and ((epoch % args.val_frequency) == 0 or epoch == args.epochs)):
         dataloader = data['val'].dataloader
@@ -304,15 +299,15 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
 
             image_features=torch.cat(all_image_features)
             text_features=torch.cat(all_text_features)
-        if not model.normalize:
-            root = torch.zeros((1, model.visual.output_dim)).to(image_features)
+        if not unwrap_model(model).normalize:
+            root = torch.zeros((1, unwrap_model(model).visual.output_dim)).to(image_features)
             image_dist = -metric(image_features, root, curvature).squeeze(dim=-1)
             text_dist = -metric(text_features, root, curvature).squeeze(dim=-1)
             compute_and_plot_norm(image_dist, text_dist)
 
         if not args.entailment_weight:
             root = (image_features.mean(dim=0, keepdim=True) + text_features.mean(dim=0, keepdim=True)) / 2
-            if model.normalize:
+            if unwrap_model(model).normalize:
                 root = F.normalize(root, dim=-1)
             image_dist = -metric(image_features, root, curvature).squeeze(dim=-1)
             text_dist = -metric(text_features, root, curvature).squeeze(dim=-1)
