@@ -290,6 +290,8 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
                 with autocast():
                     model_out = model(images, texts)
                     curvature = model_out["curvature"]
+                    if curvature is not None:
+                        curvature = curvature.cpu()
                     image_features = model_out["image_features"]
                     text_features = model_out["text_features"]
                     # features are accumulated in CPU tensors, otherwise GPU memory exhausted quickly
