@@ -275,7 +275,7 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
     autocast = get_autocast(args.precision)
     input_dtype = get_input_dtype(args.precision)
     geometry = unwrap_model(model).geometry.split('-')[0]
-    metric = METRICS[unwrap_model(model).geometry.split('-')[0]]
+    metric = METRICS[geometry]
 
     if 'val' in data and (args.val_frequency and ((epoch % args.val_frequency) == 0 or epoch == args.epochs)):
         dataloader = data['val'].dataloader
