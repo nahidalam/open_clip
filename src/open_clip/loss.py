@@ -92,6 +92,15 @@ def _exponential_map(x, curvature):
     return x_space, x_time
 
 
+def lorentzian_distance_from_zero(x, curvature):
+    # FP32 for exponential map and losses for numerical stability,
+    # per https://arxiv.org/abs/2304.09172
+    x, curvature = x.double(), curvature.double()
+    _, x_time = _exponential_map(x, curvature)
+    y_time = torch.rsqrt(curvature) * torch.ones(1).to(x)
+    return -torch.rsqrt(curvature) * torch.acosh(curvature * torch.outer(x_time, y_time))
+
+
 def lorentzian_distance(x, y, curvature):
     # FP32 for exponential map and losses for numerical stability,
     # per https://arxiv.org/abs/2304.09172

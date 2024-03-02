@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from torch.nn.parallel.distributed import DistributedDataParallel
 import matplotlib.pyplot as plt
 from open_clip import METRICS
+from open_clip.loss import lorentzian_distance_from_zero
 
 try:
     import wandb
@@ -273,6 +274,7 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
 
     autocast = get_autocast(args.precision)
     input_dtype = get_input_dtype(args.precision)
+    geometry = unwrap_model(model).geometry.split('-')[0]
     metric = METRICS[unwrap_model(model).geometry.split('-')[0]]
 
     if 'val' in data and (args.val_frequency and ((epoch % args.val_frequency) == 0 or epoch == args.epochs)):
@@ -302,9 +304,13 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
             image_features=torch.cat(all_image_features)
             text_features=torch.cat(all_text_features)
         if not unwrap_model(model).normalize:
-            root = torch.zeros((1, unwrap_model(model).visual.output_dim)).to(image_features)
-            image_dist = -metric(image_features, root, curvature).squeeze(dim=-1)
-            text_dist = -metric(text_features, root, curvature).squeeze(dim=-1)
+            if geometry == 'hyperbolic':
+                image_dist = -lorentzian_distance_from_zero(image_features, curvature)
+                text_dist = -lorentzian_distance_from_zero(text_features, curvature)
+            else:
+                root = torch.zeros((1, unwrap_model(model).visual.output_dim)).to(image_features)
+                image_dist = -metric(image_features, root, curvature)
+                text_dist = -metric(text_features, root, curvature)
             compute_and_plot_norm(image_dist, text_dist)
 
         if not args.entailment_weight:
