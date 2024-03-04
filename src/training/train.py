@@ -309,7 +309,6 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
                 text_dist = -lorentzian_distance_from_zero(text_features, curvature)
             else:
                 root = torch.zeros((1, unwrap_model(model).visual.output_dim)).to(image_features)
-                np.save('root.npy', root.numpy())
                 image_dist = -metric(image_features, root, curvature)
                 text_dist = -metric(text_features, root, curvature)
             compute_and_plot_norm(image_dist, text_dist)
