@@ -305,13 +305,14 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
             text_features=torch.cat(all_text_features)
         if not unwrap_model(model).normalize:
             if geometry == 'hyperbolic':
-                image_dist = -lorentzian_distance_from_zero(image_features, curvature)
-                text_dist = -lorentzian_distance_from_zero(text_features, curvature)
+                image_dist = -lorentzian_distance_from_zero(image_features, curvature).squeeze(dim=-1)
+                text_dist = -lorentzian_distance_from_zero(text_features, curvature).squeeze(dim=-1)
             else:
                 root = torch.zeros((1, unwrap_model(model).visual.output_dim)).to(image_features)
-                image_dist = -metric(image_features, root, curvature)
-                text_dist = -metric(text_features, root, curvature)
-            compute_and_plot_norm(image_dist, text_dist)
+                image_dist = -metric(image_features, root, curvature).squeeze(dim=-1)
+                text_dist = -metric(text_features, root, curvature).squeeze(dim=-1)
+            #compute_and_plot_norm(image_dist, text_dist)
+            compute_and_plot_norm(image_dist.squeeze(dim=-1),text_dist.squeeze(dim=-1))
 
         if not args.entailment_weight:
             root = (image_features.mean(dim=0, keepdim=True) + text_features.mean(dim=0, keepdim=True)) / 2
