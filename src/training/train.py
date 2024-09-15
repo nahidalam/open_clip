@@ -10,6 +10,8 @@ import torch
 import torch.nn.functional as F
 from torch.nn.parallel.distributed import DistributedDataParallel
 import matplotlib.pyplot as plt
+from open_clip import METRICS
+from open_clip.loss import lorentzian_distance_from_zero
 
 try:
     import wandb
@@ -233,12 +235,7 @@ def train_one_epoch(model, data, loss, epoch, optimizer, scaler, scheduler, dist
     # end for
 
 
-def compute_and_plot_norm(all_image_embeddings, all_text_embeddings):
-    # compute the L2 norms
-    # dim = -1 assuming norm along the last dimension
-    image_l2_norms = torch.norm(all_image_embeddings, p=2, dim=-1)
-    text_l2_norms = torch.norm(all_text_embeddings, p=2, dim=-1)
-
+def compute_and_plot_norm(image_l2_norms, text_l2_norms, prefix=''):
     # plot norm
     # convert tensors to numpy arrays
     image_l2_norms_np = image_l2_norms.numpy()
@@ -250,18 +247,18 @@ def compute_and_plot_norm(all_image_embeddings, all_text_embeddings):
     # plot the distribution of text L2 norms
     plt.hist(text_l2_norms_np, bins=50, alpha=0.5, label='Text L2 Norms', density=True)
 
-    plt.xlabel('L2 Norms')
-    plt.ylabel('Frequency')
+    plt.xlabel('Distance')
+    plt.ylabel('Percentage of instances')
     plt.title('Normalized distribution of Image and Text L2 Norms')
     plt.legend()
 
     # save the plot as an image 
-    plt.savefig('norm_distribution_plot.png')
+    plt.savefig(prefix + 'norm_distribution_plot.png')
 
     # save the data as .npy files
-    np.save('image_l2_norms.npy', image_l2_norms_np)
-    np.save('text_l2_norms.npy', text_l2_norms_np)
-    
+    np.save(prefix + 'image_l2_norms.npy', image_l2_norms_np)
+    np.save(prefix + 'text_l2_norms.npy', text_l2_norms_np)
+
     plt.close()
 
 
@@ -277,17 +274,14 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
 
     autocast = get_autocast(args.precision)
     input_dtype = get_input_dtype(args.precision)
+    geometry = unwrap_model(model).geometry.split('-')[0]
+    metric = METRICS[geometry]
 
     if 'val' in data and (args.val_frequency and ((epoch % args.val_frequency) == 0 or epoch == args.epochs)):
-        #assert args.geometry=='clip', "Validation loss is only implemented for plain vanilla CLIP"
         dataloader = data['val'].dataloader
-        #num_samples = 0
-        #samples_per_val = dataloader.num_samples
 
         # FIXME this does not scale past small eval datasets
         # all_image_features @ all_text_features will blow up memory and compute very quickly
-        #cumulative_loss = 0.0
-        #cumulative_gen_loss = 0.0
         all_image_features, all_text_features = [], []
         with torch.no_grad():
             for i, batch in enumerate(dataloader):
@@ -297,6 +291,9 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
 
                 with autocast():
                     model_out = model(images, texts)
+                    curvature = model_out["curvature"]
+                    if curvature is not None:
+                        curvature = curvature.cpu()
                     image_features = model_out["image_features"]
                     text_features = model_out["text_features"]
                     # features are accumulated in CPU tensors, otherwise GPU memory exhausted quickly
@@ -306,8 +303,25 @@ def evaluate(model, data, epoch, args, tb_writer=None, tokenizer=None):
 
             image_features=torch.cat(all_image_features)
             text_features=torch.cat(all_text_features)
+        if not unwrap_model(model).normalize:
+            if geometry == 'hyperbolic':
+                image_dist = -lorentzian_distance_from_zero(image_features, curvature)
+                text_dist = -lorentzian_distance_from_zero(text_features, curvature)
+            else:
+                root = torch.zeros((1, unwrap_model(model).visual.output_dim)).to(image_features)
+                image_dist = -metric(image_features, root, curvature)
+                text_dist = -metric(text_features, root, curvature)
+            compute_and_plot_norm(image_dist, text_dist)
 
-        compute_and_plot_norm(image_features, text_features)
+        if not args.entailment_weight:
+            root = (image_features.mean(dim=0, keepdim=True) + text_features.mean(dim=0, keepdim=True)) / 2
+            if unwrap_model(model).normalize:
+                root = F.normalize(root, dim=-1)
+            image_dist = -metric(image_features, root, curvature).squeeze(dim=-1)
+            text_dist = -metric(text_features, root, curvature).squeeze(dim=-1)
+            compute_and_plot_norm(image_dist, text_dist, "root_dist_")
+
+        
 
     if not metrics:
         return metrics
